@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0e1a">
+<title>ShakeRace — Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, push, onValue, update }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBBKFwATgvXKc0n6TQW7nBj15B3vpukF9w",
+  authDomain: "lombalari-16c05.firebaseapp.com",
+  databaseURL: "https://lombalari-16c05-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "lombalari-16c05",
+  storageBucket: "lombalari-16c05.firebasestorage.app",
+  messagingSenderId: "1089087795219",
+  appId: "1:1089087795219:web:700064d0692f7aa03d0fe6",
+  measurementId: "G-09VKL5X99B"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+window._db = db;
+// ✅ get ikut disertakan di sini
+window._dbFns = { ref, set, get, push, onValue, update };
+window.dispatchEvent(new Event('fb-ready'));
+</script>
+
+<style>
+:root {
+  --bg:     #0a0e1a;
+  --card:   #111827;
+  --border: rgba(255,255,255,0.08);
+  --white:  #f0f4ff;
+  --muted:  rgba(240,244,255,0.4);
+  --accent: #00e5ff;
+  --gold:   #ffd700;
+  --green:  #34d399;
+  --red:    #f87171;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+body {
+  font-family: 'Nunito', sans-serif;
+  background: var(--bg);
+  color: var(--white);
+  min-height: 100vh;
+  overflow: hidden;
+  position: fixed; width: 100%;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+.screen {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 24px 20px;
+  transition: opacity 0.3s, transform 0.3s;
+}
+.screen.out { opacity: 0; transform: scale(0.96); pointer-events: none; }
+
+/* JOIN */
+#s-join { gap: 0; }
+.logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 3.2rem; letter-spacing: 0.06em;
+  background: linear-gradient(135deg, var(--accent), var(--gold));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 4px; text-align: center;
+}
+.logo-sub { font-size: 0.78rem; color: var(--muted); text-align: center; margin-bottom: 28px; }
+.join-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 28px 24px;
+  width: 100%; max-width: 380px;
+}
+label { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; display: block; }
+input[type=text], select {
+  width: 100%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--white);
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.9rem;
+  padding: 12px 14px;
+  outline: none; margin-bottom: 16px;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+}
+input:focus { border-color: var(--accent); }
+.code-input {
+  font-family: 'Bebas Neue', sans-serif !important;
+  font-size: 2.2rem !important; letter-spacing: 0.2em;
+  text-align: center;
+}
+.avatar-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  margin-bottom: 20px;
+}
+.av-btn {
+  aspect-ratio: 1; border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 2px solid transparent;
+  font-size: 1.5rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.av-btn:active  { transform: scale(0.9); }
+.av-btn.chosen  { border-color: var(--accent); background: rgba(0,229,255,0.12); }
+.btn-join {
+  width: 100%; padding: 15px;
+  background: linear-gradient(135deg, var(--accent), #0072ff);
+  color: #000; border: none; border-radius: 12px;
+  font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 900;
+  cursor: pointer; letter-spacing: 0.04em;
+  box-shadow: 0 6px 24px rgba(0,229,255,0.35);
+  transition: all 0.18s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-join:active { transform: scale(0.97); }
+.join-error { color: var(--red); font-size: 0.78rem; text-align: center; margin-top: 10px; display: none; }
+
+/* WAIT */
+#s-wait { text-align: center; gap: 16px; }
+.wait-avatar-big { font-size: 5rem; animation: float 3s ease-in-out infinite; }
+
+/* ── PIXEL ART ── */
+.pixel-char { display:flex; flex-direction:column; align-items:center; gap:0; animation: runBob 0.4s ease-in-out infinite; }
+.pixel-char.idle { animation: none; }
+@keyframes runBob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+.pr { display:flex; }
+.px { width:5px; height:5px; }
+.gp { width:5px; height:5px; background:transparent; }
+.body-arms { display:flex; align-items:flex-start; }
+.arm-col { display:flex; flex-direction:column; }
+.arm-px { width:5px; height:5px; }
+.legs-wrap { display:flex; gap:0; align-items:flex-start; }
+.leg-col { display:flex; flex-direction:column; align-items:center; }
+.ll { animation: legF 0.4s ease-in-out infinite; transform-origin: top center; }
+.lr { animation: legB 0.4s ease-in-out infinite; transform-origin: top center; }
+.al { animation: armB 0.4s ease-in-out infinite; transform-origin: top center; }
+.ar { animation: armF 0.4s ease-in-out infinite; transform-origin: top center; }
+@keyframes legF { 0%,100%{transform:rotate(-20deg)} 50%{transform:rotate(20deg)} }
+@keyframes legB { 0%,100%{transform:rotate(20deg)}  50%{transform:rotate(-20deg)} }
+@keyframes armF { 0%,100%{transform:rotate(-25deg)} 50%{transform:rotate(25deg)} }
+@keyframes armB { 0%,100%{transform:rotate(25deg)}  50%{transform:rotate(-25deg)} }
+.wait-name { font-size: 1.4rem; font-weight: 900; }
+.wait-sub { font-size: 0.85rem; color: var(--muted); }
+.pulse-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
+.pulse-row span {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent); opacity: 0.3;
+  animation: pDot 1.4s ease-in-out infinite;
+}
+.pulse-row span:nth-child(2) { animation-delay: 0.2s; }
+.pulse-row span:nth-child(3) { animation-delay: 0.4s; }
+
+/* READY */
+#s-ready { text-align: center; gap: 20px; }
+.ready-emoji { font-size: 6rem; animation: bounce 0.6s ease-in-out infinite alternate; }
+.ready-title { font-family: 'Bebas Neue', sans-serif; font-size: 3rem; color: var(--gold); }
+.ready-hint { font-size: 0.88rem; color: var(--muted); line-height: 1.6; }
+
+/* RACE */
+#s-race { justify-content: flex-start; gap: 0; }
+.race-header {
+  width: 100%; padding: 16px 20px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.race-timer { font-family: 'Bebas Neue', sans-serif; font-size: 2.4rem; color: var(--gold); line-height: 1; min-width: 52px; text-align: center; }
+.race-timer.warning { color: var(--red); animation: timerPulse 0.5s ease-in-out infinite alternate; }
+.rank-display { text-align: center; }
+.rank-num { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; line-height: 1; color: var(--accent); }
+.rank-label { font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.steps-display { text-align: right; }
+.steps-num { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; line-height: 1; color: var(--green); }
+.steps-label { font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+
+.progress-ring-wrap {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  flex-direction: column; width: 100%; position: relative;
+}
+.ring-svg { width: min(280px, 75vw); height: min(280px, 75vw); }
+.ring-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 12; }
+.ring-fill {
+  fill: none; stroke-width: 12; stroke: var(--accent); stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+  transform: rotate(-90deg); transform-origin: 50% 50%;
+  filter: drop-shadow(0 0 8px rgba(0,229,255,0.6));
+}
+.ring-center { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.ring-avatar { font-size: 3.5rem; animation: raceFloat 0.25s ease-in-out infinite alternate; }
+.ring-pct { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; color: var(--white); }
+
+.shake-section { width: 100%; padding: 16px 20px 28px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.btn-shake {
+  width: min(280px, 80vw); height: 80px; border-radius: 20px;
+  background: linear-gradient(135deg, rgba(0,229,255,0.2), rgba(0,114,255,0.2));
+  border: 2px solid rgba(0,229,255,0.35);
+  color: var(--white); font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 900;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+  -webkit-tap-highlight-color: transparent; transition: all 0.1s;
+}
+.btn-shake:active { transform: scale(0.95); background: linear-gradient(135deg, rgba(0,229,255,0.4), rgba(0,114,255,0.4)); }
+.btn-shake-icon { font-size: 1.8rem; }
+.shake-hint { font-size: 0.72rem; color: var(--muted); text-align: center; }
+
+.vibe-bar-wrap { width: min(280px,80vw); height: 8px; background: rgba(255,255,255,0.07); border-radius: 8px; overflow: hidden; }
+.vibe-bar { height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--green), var(--accent)); width: 0%; transition: width 0.1s; }
+
+.shake-flash { position: fixed; inset: 0; pointer-events: none; background: rgba(0,229,255,0.12); opacity: 0; z-index: 1000; transition: opacity 0.08s; }
+.shake-flash.on { opacity: 1; }
+
+/* FINISH */
+#s-finish { text-align: center; gap: 16px; }
+.finish-my-avatar { font-size: 5rem; }
+.finish-rank-big { font-family: 'Bebas Neue', sans-serif; font-size: 5rem; line-height: 1; }
+.finish-rank-big.rank1 { color: var(--gold); }
+.finish-rank-big.rank2 { color: #c0c0c0; }
+.finish-rank-big.rank3 { color: #cd7f32; }
+.finish-steps { font-size: 0.9rem; color: var(--muted); }
+.finish-msg { font-size: 1.1rem; font-weight: 700; }
+
+/* iOS PERM */
+#ios-perm {
+  position: fixed; inset: 0; background: rgba(10,14,26,0.95);
+  display: none; align-items: center; justify-content: center;
+  flex-direction: column; gap: 20px; z-index: 900; padding: 28px; text-align: center;
+}
+#ios-perm.show { display: flex; }
+.ios-title { font-size: 1.3rem; font-weight: 800; }
+.ios-sub { font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+.btn-allow { padding: 16px 44px; border: none; border-radius: 12px; background: var(--accent); color: #000; font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 900; cursor: pointer; }
+
+@keyframes float    { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes pDot     { 0%,80%,100% { transform: scale(0.6); opacity: 0.3; } 40% { transform: scale(1); opacity: 1; } }
+@keyframes bounce   { from { transform: translateY(0) scale(1); } to { transform: translateY(-12px) scale(1.05); } }
+@keyframes raceFloat { from { transform: translateY(0) rotate(-8deg); } to { transform: translateY(-6px) rotate(8deg); } }
+@keyframes timerPulse { from { opacity: 1; } to { opacity: 0.4; } }
+</style>
+</head>
+<body>
+
+<div id="ios-perm">
+  <div style="font-size:4rem">📱</div>
+  <div class="ios-title">Izinkan Sensor Gerak</div>
+  <div class="ios-sub">ShakeRace butuh akses sensor gerak HP kamu. Tekan tombol di bawah lalu pilih <b>Allow</b>.</div>
+  <button class="btn-allow" onclick="requestIOSMotion()">Izinkan Sensor Gerak</button>
+</div>
+
+<div class="shake-flash" id="shake-flash"></div>
+
+<!-- JOIN -->
+<div class="screen" id="s-join">
+  <div class="logo">ShakeRace 🏃</div>
+  <div class="logo-sub">Goyangkan HP-mu untuk berlari!</div>
+  <div class="join-card">
+    <label>Kode Room (6 digit)</label>
+    <input type="text" class="code-input" id="join-code" placeholder="000000" maxlength="6" inputmode="numeric" oninput="this.value=this.value.replace(/\D/g,'')">
+    <label>Nama Kamu</label>
+    <input type="text" id="join-name" placeholder="Masukkan nama..." maxlength="18">
+    <label>Pilih Avatar</label>
+    <div class="avatar-grid" id="avatar-grid"></div>
+    <button class="btn-join" onclick="joinRoom()">🚀 Bergabung</button>
+    <div class="join-error" id="join-error"></div>
+  </div>
+</div>
+
+<!-- WAIT -->
+<div class="screen out" id="s-wait">
+  <div class="wait-avatar-big" id="wait-av" style="font-size:0"></div>
+  <div class="wait-name" id="wait-name">—</div>
+  <div class="wait-sub">Menunggu host memulai lomba…</div>
+  <div class="pulse-row"><span></span><span></span><span></span></div>
+  <div style="margin-top:16px;font-size:0.72rem;color:rgba(240,244,255,0.25)">Pemain di room: <span id="wait-count">0</span></div>
+</div>
+
+<!-- READY -->
+<div class="screen out" id="s-ready">
+  <div class="ready-emoji" id="ready-emoji">🏃</div>
+  <div class="ready-title">SIAP!</div>
+  <div class="ready-hint">Bersiap goyangkan HP-mu<br>secepat mungkin!</div>
+</div>
+
+<!-- RACE -->
+<div class="screen out" id="s-race">
+  <div class="race-header">
+    <div class="race-timer" id="race-timer">60</div>
+    <div class="rank-display">
+      <div class="rank-num" id="my-rank">—</div>
+      <div class="rank-label">Peringkat</div>
+    </div>
+    <div class="steps-display">
+      <div class="steps-num" id="my-steps">0</div>
+      <div class="steps-label">Goyang</div>
+    </div>
+  </div>
+  <div class="progress-ring-wrap">
+    <svg class="ring-svg" viewBox="0 0 200 200">
+      <circle class="ring-track" cx="100" cy="100" r="80"/>
+      <circle class="ring-fill" cx="100" cy="100" r="80" id="ring-fill"
+        stroke-dasharray="502" stroke-dashoffset="502"/>
+    </svg>
+    <div class="ring-center">
+      <div class="ring-avatar" id="ring-avatar" style="font-size:0;transform:scale(2.5);transform-origin:center"></div>
+      <div class="ring-pct" id="ring-pct">0%</div>
+    </div>
+  </div>
+  <div class="shake-section">
+    <div class="vibe-bar-wrap"><div class="vibe-bar" id="vibe-bar"></div></div>
+    <button class="btn-shake" ontouchstart="manualShake()" onclick="manualShake()">
+      <span class="btn-shake-icon">📳</span> TAP / GOYANG HP
+    </button>
+    <div class="shake-hint" id="shake-hint">📱 Goyangkan HP kamu sekuat-kuatnya!<br>Atau tekan tombol di atas berulang-ulang.</div>
+  </div>
+</div>
+
+<!-- FINISH -->
+<div class="screen out" id="s-finish">
+  <div class="finish-my-avatar" id="finish-av" style="font-size:0;transform:scale(3);transform-origin:top center;margin-bottom:32px"></div>
+  <div class="finish-rank-big" id="finish-rank">—</div>
+  <div class="finish-msg" id="finish-msg">—</div>
+  <div class="finish-steps" id="finish-steps">— goyang</div>
+  <div style="margin-top:24px;font-size:3rem">🎉</div>
+</div>
+
+<script>
+const P = {
+  roomCode: null, playerId: null, name: null, avatar: null,
+  steps: 0, timeLeft: 0, raceTimer: null,
+  motionEnabled: false, lastShakeTime: 0,
+  SHAKE_THRESHOLD: 12, SHAKE_COOLDOWN: 120,
+  pendingSteps: 0, writeInterval: null, finishSteps: 200,
+};
+
+const CHAR_TYPES = ['pria','wanita','robot'];
+const CHAR_COLORS = {
+  pria:   { shirt:'#1565C0', shirt2:'#0D47A1', skin:'#F5C5A3', hair:'#3B2008', pant:'#263238', pant2:'#37474F', shoe:'#ffffff', bib:'#fff' },
+  wanita: { shirt:'#E91E63', shirt2:'#880E4F', skin:'#F5C5A3', hair:'#5D2E0C', pant:'#880E4F', pant2:'#F48FB1', shoe:'#E91E63', bib:'#F48FB1' },
+  robot:  { shirt:'#546E7A', shirt2:'#455A64', skin:'#607D8B', hair:'#00E5FF', pant:'#455A64', pant2:'#546E7A', shoe:'#37474F', bib:'#00E5FF' },
+};
+const CHAR_LABELS = { pria:'Pria 🔵', wanita:'Wanita 🔴', robot:'Robot 🤖' };
+
+function px2(color) { return `<div class="px" style="background:${color}"></div>`; }
+function gp2()      { return `<div class="gp"></div>`; }
+function row2(cells){ return `<div class="pr">${cells}</div>`; }
+
+function buildPixelChar(charType, idle=false) {
+  const c = CHAR_COLORS[charType] || CHAR_COLORS['pria'];
+  const idleClass = idle ? ' idle' : '';
+  const isRobot = charType === 'robot';
+  const head = isRobot ? `
+    ${row2(gp2()+gp2()+px2(c.hair)+gp2()+gp2())}
+    ${row2(gp2()+gp2()+px2('#90A4AE')+gp2()+gp2())}
+    ${row2(px2(c.skin)+px2(c.skin)+px2(c.skin)+px2(c.skin)+px2(c.skin))}
+    ${row2(px2('#607D8B')+px2(c.hair)+px2('#607D8B')+px2(c.hair)+px2('#607D8B'))}
+    ${row2(px2('#607D8B')+px2(c.shirt2)+px2(c.shirt2)+px2(c.shirt2)+px2('#607D8B'))}
+  ` : `
+    ${row2(gp2()+px2(c.hair)+px2(c.hair)+px2(c.hair)+gp2())}
+    ${row2(px2(c.skin)+px2(c.skin)+px2(c.skin)+px2(c.skin)+px2(c.skin))}
+    ${row2(px2(c.skin)+px2('#2C1A0A')+px2(c.skin)+px2('#2C1A0A')+px2(c.skin))}
+    ${row2(px2(c.skin)+px2(c.skin)+px2('#D32F2F')+px2(c.skin)+px2(c.skin))}
+  `;
+  const bodyRows = `
+    ${row2(px2(c.shirt)+px2(c.shirt)+px2(c.shirt)+px2(c.shirt)+px2(c.shirt))}
+    ${row2(px2(c.shirt)+px2(c.bib)+px2(c.bib)+px2(c.bib)+px2(c.shirt))}
+    ${row2(px2(c.shirt)+px2(c.shirt)+px2(c.shirt)+px2(c.shirt)+px2(c.shirt))}
+    ${row2(px2(c.shirt2)+px2(c.shirt2)+px2(c.shirt2)+px2(c.shirt2)+px2(c.shirt2))}
+  `;
+  return `<div class="pixel-char${idleClass}">
+    ${head}
+    ${row2(gp2()+gp2()+px2(c.skin)+gp2()+gp2())}
+    <div class="body-arms">
+      <div class="arm-col al"><div class="arm-px" style="background:${c.shirt}"></div><div class="arm-px" style="background:${c.shirt}"></div><div class="arm-px" style="background:${c.skin}"></div></div>
+      <div style="display:flex;flex-direction:column">${bodyRows}</div>
+      <div class="arm-col ar"><div class="arm-px" style="background:${c.shirt2}"></div><div class="arm-px" style="background:${c.shirt2}"></div><div class="arm-px" style="background:${c.skin}"></div></div>
+    </div>
+    <div class="legs-wrap">
+      <div class="leg-col ll"><div class="px" style="background:${c.pant}"></div><div class="px" style="background:${c.pant}"></div><div class="px" style="background:${c.pant2}"></div><div class="px" style="background:${c.pant2}"></div><div class="px" style="background:${c.shoe}"></div></div>
+      <div class="gp"></div>
+      <div class="leg-col lr"><div class="px" style="background:${c.pant2}"></div><div class="px" style="background:${c.pant2}"></div><div class="px" style="background:${c.pant}"></div><div class="px" style="background:${c.pant}"></div><div class="px" style="background:${c.shoe}"></div></div>
+    </div>
+  </div>`;
+}
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('out', s.id !== id));
+}
+
+function buildAvatarGrid() {
+  P.avatar = CHAR_TYPES[0];
+  const grid = document.getElementById('avatar-grid');
+  grid.innerHTML = CHAR_TYPES.map((t, i) => `
+    <div class="av-btn ${i===0?'chosen':''}" onclick="pickAvatar('${t}',this)" style="flex-direction:column;gap:4px;height:auto;padding:10px 8px">
+      <div style="transform:scale(1.4);transform-origin:top center;margin-bottom:6px">${buildPixelChar(t, true)}</div>
+      <div style="font-size:10px;color:rgba(240,244,255,0.6)">${CHAR_LABELS[t]}</div>
+    </div>
+  `).join('');
+}
+
+function pickAvatar(a, el) {
+  P.avatar = a;
+  document.querySelectorAll('.av-btn').forEach(b => b.classList.remove('chosen'));
+  el.classList.add('chosen');
+}
+
+async function joinRoom() {
+  const code = document.getElementById('join-code').value.trim();
+  const name = document.getElementById('join-name').value.trim();
+  const errEl = document.getElementById('join-error');
+  errEl.style.display = 'none';
+
+  if (code.length !== 6) { errEl.textContent = 'Kode harus 6 digit'; errEl.style.display = 'block'; return; }
+  if (!name) { errEl.textContent = 'Nama tidak boleh kosong'; errEl.style.display = 'block'; return; }
+  if (!window._db) { errEl.textContent = 'Firebase belum siap, tunggu sebentar'; errEl.style.display = 'block'; return; }
+
+  const { ref, get, push, set, onValue } = window._dbFns;
+  const db = window._db;
+
+  try {
+    const snap = await get(ref(db, `races/${code}`));
+    if (!snap.exists()) { errEl.textContent = 'Room tidak ditemukan!'; errEl.style.display = 'block'; return; }
+    const room = snap.val();
+    if (room.status !== 'lobby') { errEl.textContent = 'Lomba sudah dimulai!'; errEl.style.display = 'block'; return; }
+
+    P.roomCode = code;
+    P.name = name;
+    P.finishSteps = room.finishSteps || 200;
+
+    const pRef = push(ref(db, `races/${code}/players`));
+    P.playerId = pRef.key;
+    await set(pRef, { name, avatar: P.avatar, steps: 0 });
+
+    document.getElementById('wait-av').innerHTML = buildPixelChar(P.avatar, false);
+    document.getElementById('wait-name').textContent = `Halo, ${name}! 👋`;
+    document.getElementById('ring-avatar').innerHTML = buildPixelChar(P.avatar, false);
+    show('s-wait');
+
+    onValue(ref(db, `races/${code}`), snap2 => {
+      const r = snap2.val(); if (!r) return;
+      document.getElementById('wait-count').textContent = Object.keys(r.players || {}).length;
+      if (r.status === 'countdown') {
+        show('s-ready');
+      } else if (r.status === 'racing' && P.raceTimer === null) {
+        P.timeLeft = r.duration || 60;
+        startRacePlayer();
+      } else if (r.status === 'finished') {
+        endRacePlayer(r.players);
+      }
+    });
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function startRacePlayer() {
+  show('s-race');
+  document.getElementById('ring-avatar').innerHTML = buildPixelChar(P.avatar, false);
+
+  P.raceTimer = setInterval(() => {
+    P.timeLeft--;
+    const el = document.getElementById('race-timer');
+    el.textContent = P.timeLeft;
+    el.classList.toggle('warning', P.timeLeft <= 10);
+    if (P.timeLeft <= 0) { clearInterval(P.raceTimer); P.raceTimer = -1; }
+  }, 1000);
+
+  P.writeInterval = setInterval(() => {
+    if (P.pendingSteps > 0) flushSteps();
+    updateRankDisplay();
+  }, 300);
+
+  setupMotion();
+}
+
+function setupMotion() {
+  if (typeof DeviceMotionEvent !== 'undefined' &&
+      typeof DeviceMotionEvent.requestPermission === 'function') {
+    document.getElementById('ios-perm').classList.add('show');
+    return;
+  }
+  attachMotionListener();
+}
+
+function requestIOSMotion() {
+  DeviceMotionEvent.requestPermission().then(state => {
+    document.getElementById('ios-perm').classList.remove('show');
+    if (state === 'granted') {
+      attachMotionListener();
+      document.getElementById('shake-hint').textContent = '✅ Sensor aktif! Goyangkan HP!';
+    } else {
+      document.getElementById('shake-hint').textContent = '❌ Izin ditolak — gunakan tombol tap';
+    }
+  }).catch(() => {
+    document.getElementById('ios-perm').classList.remove('show');
+  });
+}
+
+function attachMotionListener() {
+  P.motionEnabled = true;
+  window.addEventListener('devicemotion', handleMotion, { passive: true });
+  document.getElementById('shake-hint').textContent = '✅ Sensor aktif! Goyangkan HP sekuat-kuatnya!';
+}
+
+function handleMotion(e) {
+  if (P.raceTimer === -1) return;
+  const acc = e.accelerationIncludingGravity; if (!acc) return;
+  const mag = Math.sqrt((acc.x||0)**2 + (acc.y||0)**2 + (acc.z||0)**2);
+  document.getElementById('vibe-bar').style.width = Math.min(mag/30,1)*100 + '%';
+  const now = Date.now();
+  if (mag > P.SHAKE_THRESHOLD && (now - P.lastShakeTime) > P.SHAKE_COOLDOWN) {
+    P.lastShakeTime = now; countStep();
+  }
+}
+
+function manualShake() {
+  if (P.raceTimer === -1 || !P.roomCode) return;
+  const now = Date.now();
+  if ((now - P.lastShakeTime) < P.SHAKE_COOLDOWN) return;
+  P.lastShakeTime = now; countStep();
+  document.getElementById('vibe-bar').style.width = '100%';
+  setTimeout(() => document.getElementById('vibe-bar').style.width = '0%', 150);
+}
+
+function countStep() {
+  P.steps++; P.pendingSteps++;
+  document.getElementById('my-steps').textContent = P.steps;
+  const pct = Math.min(P.steps / P.finishSteps, 1);
+  document.getElementById('ring-fill').style.strokeDashoffset = 502 - pct * 502;
+  document.getElementById('ring-pct').textContent = Math.round(pct * 100) + '%';
+  const flash = document.getElementById('shake-flash');
+  flash.classList.add('on');
+  setTimeout(() => flash.classList.remove('on'), 80);
+  if (navigator.vibrate) navigator.vibrate(20);
+}
+
+async function flushSteps() {
+  if (!P.playerId || !P.roomCode) return;
+  P.pendingSteps = 0;
+  const { ref, update } = window._dbFns;
+  try {
+    await update(ref(window._db, `races/${P.roomCode}/players/${P.playerId}`), { steps: P.steps });
+  } catch(e) { console.warn('flush error', e); }
+}
+
+async function updateRankDisplay() {
+  if (!P.roomCode) return;
+  const { ref, get } = window._dbFns;
+  try {
+    const snap = await get(ref(window._db, `races/${P.roomCode}/players`));
+    const players = Object.values(snap.val() || {});
+    const sorted = players.sort((a,b) => (b.steps||0) - (a.steps||0));
+    const myRank = sorted.findIndex(p => p.name === P.name) + 1;
+    document.getElementById('my-rank').textContent = `#${myRank}`;
+  } catch(e) {}
+}
+
+async function endRacePlayer(players) {
+  clearInterval(P.raceTimer); clearInterval(P.writeInterval);
+  P.raceTimer = -1;
+  window.removeEventListener('devicemotion', handleMotion);
+  await flushSteps();
+
+  const sorted = Object.values(players || {}).sort((a,b) => (b.steps||0) - (a.steps||0));
+  const myRank = sorted.findIndex(p => p.name === P.name) + 1;
+  const myData = sorted.find(p => p.name === P.name);
+  const medals = ['🥇','🥈','🥉'];
+  const msgs = ['🥇 Juara 1!', '🥈 Runner Up!', '🥉 Juara 3!'];
+
+  document.getElementById('finish-av').innerHTML = buildPixelChar(P.avatar, true);
+  const rankEl = document.getElementById('finish-rank');
+  rankEl.textContent = myRank <= 3 ? medals[myRank-1] : `#${myRank}`;
+  rankEl.className = `finish-rank-big ${myRank <= 3 ? 'rank'+myRank : ''}`;
+  document.getElementById('finish-msg').textContent = myRank <= 3 ? msgs[myRank-1] : `Peringkat ke-${myRank}`;
+  document.getElementById('finish-steps').textContent = `${myData?.steps || P.steps} goyang`;
+  show('s-finish');
+}
+
+window.addEventListener('fb-ready', () => {
+  buildAvatarGrid();
+  show('s-join');
+  const params = new URLSearchParams(location.search);
+  if (params.get('room')) document.getElementById('join-code').value = params.get('room');
+});
+</script>
+</body>
+</html>

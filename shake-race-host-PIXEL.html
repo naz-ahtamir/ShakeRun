@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShakeRace — Host Display</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, push, onValue, update, remove, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ── GANTI CONFIG INI ──────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBBKFwATgvXKc0n6TQW7nBj15B3vpukF9w",
+  authDomain: "lombalari-16c05.firebaseapp.com",
+  databaseURL: "https://lombalari-16c05-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "lombalari-16c05",
+  storageBucket: "lombalari-16c05.firebasestorage.app",
+  messagingSenderId: "1089087795219",
+  appId: "1:1089087795219:web:700064d0692f7aa03d0fe6",
+  measurementId: "G-09VKL5X99B"
+};
+// ─────────────────────────────────────────────────────────────────
+
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+window._db = db;
+window._dbRef = ref;
+window._dbFns = { ref, set, get, push, onValue, update, remove, serverTimestamp };
+window.dispatchEvent(new Event('fb-ready'));
+</script>
+
+<style>
+:root {
+  --sky-top:   #0a0e1a;
+  --sky-mid:   #0d1f3c;
+  --sky-bot:   #1a3a5c;
+  --track-top: #2d4a1e;
+  --track-mid: #4a7c2f;
+  --track-bot: #6aab42;
+  --lane:      rgba(255,255,255,0.06);
+  --gold:      #ffd700;
+  --silver:    #c0c0c0;
+  --bronze:    #cd7f32;
+  --white:     #f0f4ff;
+  --accent:    #00e5ff;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background: var(--sky-top);
+  color: var(--white);
+  overflow: hidden;
+  width: 100vw; height: 100vh;
+  user-select: none;
+}
+
+/* ── SETUP OVERLAY ── */
+#setup-overlay {
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, #0d1f3c 0%, #060910 100%);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 500; flex-direction: column; gap: 24px;
+}
+.setup-card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 36px 40px;
+  width: min(520px, 95vw);
+  backdrop-filter: blur(10px);
+}
+.setup-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 3rem; letter-spacing: 0.05em;
+  background: linear-gradient(135deg, var(--accent), var(--gold));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 6px;
+}
+.setup-sub { font-size: 0.85rem; color: rgba(240,244,255,0.5); margin-bottom: 28px; }
+label { font-size: 0.75rem; color: rgba(240,244,255,0.5); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; display: block; }
+input[type=text], textarea, select {
+  width: 100%;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  color: var(--white);
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.88rem;
+  padding: 11px 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  margin-bottom: 16px;
+}
+input:focus, textarea:focus { border-color: var(--accent); }
+textarea { font-size: 0.72rem; font-family: monospace; height: 110px; resize: vertical; }
+.btn {
+  padding: 13px 32px; border: none; border-radius: 10px;
+  font-family: 'Nunito', sans-serif; font-size: 0.88rem; font-weight: 800;
+  cursor: pointer; transition: all 0.18s; letter-spacing: 0.04em;
+}
+.btn-accent { background: var(--accent); color: #000; }
+.btn-accent:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,229,255,0.4); }
+.btn-full { width: 100%; }
+#setup-error { color: #ff6b6b; font-size: 0.78rem; margin-bottom: 12px; display: none; }
+
+/* ── GAME FIELD ── */
+#game-field {
+  width: 100vw; height: 100vh;
+  position: relative;
+  display: none;
+  overflow: hidden;
+}
+
+/* Sky layers */
+.sky {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 40%, var(--sky-bot) 100%);
+}
+
+/* Stars */
+.stars {
+  position: absolute; width: 100%; height: 45%;
+  top: 0;
+}
+.star {
+  position: absolute;
+  width: 2px; height: 2px;
+  background: #fff; border-radius: 50%;
+  animation: twinkle var(--d, 3s) ease-in-out infinite;
+}
+@keyframes twinkle {
+  0%,100% { opacity: 0.2; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.4); }
+}
+
+/* Moving clouds */
+.cloud-layer {
+  position: absolute; width: 200%; height: 100px;
+  top: 8%; display: flex; gap: 300px;
+  animation: scrollCloud 40s linear infinite;
+}
+.cloud {
+  font-size: 3rem; opacity: 0.15;
+  filter: blur(1px);
+  white-space: nowrap;
+}
+@keyframes scrollCloud {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* Mountains */
+.mountains {
+  position: absolute;
+  bottom: 38%; width: 200%; height: 160px;
+  animation: scrollMtn 80s linear infinite;
+}
+.mtn-svg { width: 100%; height: 100%; }
+
+/* Ground */
+.ground {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 38%;
+  background: linear-gradient(180deg, var(--track-top) 0%, var(--track-mid) 30%, var(--track-bot) 100%);
+}
+
+/* Track lanes */
+.track {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 38%;
+}
+
+/* Finish line */
+.finish-line {
+  position: absolute;
+  right: 8%;
+  top: 0; bottom: 0;
+  width: 14px;
+  background: repeating-linear-gradient(
+    180deg,
+    #fff 0px, #fff 10px,
+    #000 10px, #000 20px
+  );
+  z-index: 20;
+  box-shadow: 0 0 20px rgba(255,255,255,0.5);
+}
+.finish-flag {
+  position: absolute; top: -30px; left: 0;
+  font-size: 1.8rem; animation: flagWave 0.8s ease-in-out infinite alternate;
+}
+@keyframes flagWave { from { transform: rotate(-10deg); } to { transform: rotate(10deg); } }
+
+/* Distance markers */
+.dist-marker {
+  position: absolute; bottom: 100%; left: 0;
+  font-size: 0.65rem; color: rgba(255,255,255,0.5);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* ── RUNNER ── */
+.runner-lane {
+  position: absolute; left: 0; right: 0;
+  display: flex; align-items: center;
+  transition: none;
+}
+.runner-wrap {
+  position: absolute;
+  display: flex; flex-direction: column; align-items: center;
+  transition: left 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  z-index: 10;
+}
+.runner-emoji { display: block; }
+
+/* ── PIXEL ART CHARACTER ── */
+.pixel-char { display:flex; flex-direction:column; align-items:center; gap:0; animation: runBob 0.4s ease-in-out infinite; }
+.pixel-char.idle { animation: none; }
+@keyframes runBob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+.pr { display:flex; }
+.px { width:5px; height:5px; }
+.gp { width:5px; height:5px; background:transparent; }
+.body-arms { display:flex; align-items:flex-start; }
+.arm-col { display:flex; flex-direction:column; }
+.arm-px { width:5px; height:5px; }
+.legs-wrap { display:flex; gap:0; align-items:flex-start; }
+.leg-col { display:flex; flex-direction:column; align-items:center; }
+.ll { animation: legF 0.4s ease-in-out infinite; transform-origin: top center; }
+.lr { animation: legB 0.4s ease-in-out infinite; transform-origin: top center; }
+.al { animation: armB 0.4s ease-in-out infinite; transform-origin: top center; }
+.ar { animation: armF 0.4s ease-in-out infinite; transform-origin: top center; }
+@keyframes legF { 0%,100%{transform:rotate(-20deg)} 50%{transform:rotate(20deg)} }
+@keyframes legB { 0%,100%{transform:rotate(20deg)}  50%{transform:rotate(-20deg)} }
+@keyframes armF { 0%,100%{transform:rotate(-25deg)} 50%{transform:rotate(25deg)} }
+@keyframes armB { 0%,100%{transform:rotate(25deg)}  50%{transform:rotate(-25deg)} }
+.lpc-avatar .pixel-char { transform:scale(1.6); transform-origin:top center; margin-bottom:8px; }
+.pb-avatar .pixel-char  { transform:scale(2);   transform-origin:top center; margin-bottom:8px; }
+.runner-name-tag {
+  background: rgba(0,0,0,0.65);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  white-space: nowrap;
+  margin-top: 3px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.runner-rank-badge {
+  position: absolute;
+  top: -14px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.6rem;
+  font-weight: 900;
+  background: var(--gold);
+  color: #000;
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+/* Dust particles */
+.dust {
+  position: absolute;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(255,220,150,0.6);
+  pointer-events: none;
+  animation: dustFly 0.6s ease-out forwards;
+}
+@keyframes dustFly {
+  0%   { transform: translate(0,0) scale(1); opacity: 0.8; }
+  100% { transform: translate(-25px, -12px) scale(0); opacity: 0; }
+}
+
+/* ── TOP HUD ── */
+.hud {
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 56px;
+  background: rgba(6,9,16,0.75);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  display: flex; align-items: center;
+  padding: 0 24px; gap: 24px; z-index: 50;
+}
+.hud-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.8rem; letter-spacing: 0.08em;
+  background: linear-gradient(135deg, var(--accent), var(--gold));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hud-room {
+  font-size: 0.7rem; color: rgba(240,244,255,0.4);
+  margin-left: 4px;
+}
+.hud-room span { color: var(--accent); font-weight: 800; font-family: monospace; font-size: 1rem; }
+.hud-spacer { flex: 1; }
+.hud-players { font-size: 0.78rem; color: rgba(240,244,255,0.5); }
+.hud-players strong { color: var(--white); }
+
+/* Countdown overlay */
+#countdown-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+  background: rgba(6,9,16,0.7);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+}
+.countdown-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20vw;
+  color: var(--gold);
+  text-shadow: 0 0 80px rgba(255,215,0,0.5);
+  animation: countPop 0.9s ease-out forwards;
+  line-height: 1;
+}
+@keyframes countPop {
+  0%   { transform: scale(2); opacity: 0; }
+  30%  { transform: scale(1); opacity: 1; }
+  85%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.6); opacity: 0; }
+}
+.countdown-sub { font-size: 1.2rem; color: rgba(240,244,255,0.6); margin-top: 12px; }
+
+/* Race progress bar */
+.race-progress-bar {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 4px; background: rgba(0,0,0,0.3);
+  z-index: 30;
+}
+.rpb-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--gold)); transition: width 0.3s; }
+
+/* Lobby waiting screen overlay */
+#lobby-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 20px;
+  background: rgba(6,9,16,0.88);
+  z-index: 80;
+}
+.room-code-big {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(5rem, 15vw, 10rem);
+  letter-spacing: 0.15em;
+  color: var(--gold);
+  text-shadow: 0 0 80px rgba(255,215,0,0.3);
+  line-height: 1;
+}
+.lobby-label { font-size: 0.7rem; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(240,244,255,0.4); }
+.lobby-players-wrap {
+  display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
+  max-width: 800px;
+}
+.lobby-player-chip {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px; padding: 12px 18px;
+  text-align: center; animation: popIn 0.3s both;
+}
+.lpc-avatar { font-size: 2rem; }
+.lpc-name { font-size: 0.78rem; font-weight: 700; margin-top: 4px; }
+.lobby-url { font-size: 0.75rem; color: rgba(240,244,255,0.35); }
+.btn-start {
+  padding: 16px 52px; font-size: 1rem; font-weight: 900;
+  background: linear-gradient(135deg, #00e5ff, #0072ff);
+  color: #000; border: none; border-radius: 12px;
+  cursor: pointer; font-family: 'Nunito', sans-serif;
+  letter-spacing: 0.05em;
+  box-shadow: 0 8px 32px rgba(0,229,255,0.4);
+  transition: all 0.2s;
+}
+.btn-start:hover { transform: translateY(-3px); box-shadow: 0 14px 40px rgba(0,229,255,0.5); }
+.btn-start:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+/* Finish celebration */
+#finish-overlay {
+  position: absolute; inset: 0;
+  display: none; align-items: center; justify-content: center;
+  flex-direction: column;
+  background: rgba(6,9,16,0.82);
+  z-index: 200;
+}
+.finish-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3rem, 8vw, 6rem);
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, var(--gold), var(--accent));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 32px;
+}
+.podium-row {
+  display: flex; gap: 16px; align-items: flex-end; justify-content: center;
+  margin-bottom: 32px;
+}
+.podium-block {
+  display: flex; flex-direction: column; align-items: center;
+  animation: riseUp 0.5s both;
+}
+.pb-avatar { font-size: 3rem; margin-bottom: 6px; }
+.pb-name { font-size: 0.9rem; font-weight: 800; margin-bottom: 4px; }
+.pb-steps { font-size: 0.75rem; color: rgba(240,244,255,0.5); margin-bottom: 10px; }
+.pb-stand {
+  width: 110px; border-radius: 8px 8px 0 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.8rem;
+}
+.pb-stand.p1 { height: 130px; background: linear-gradient(180deg,rgba(255,215,0,0.35),rgba(255,215,0,0.1)); border: 1px solid rgba(255,215,0,0.4); animation-delay: 0.3s; }
+.pb-stand.p2 { height: 90px;  background: linear-gradient(180deg,rgba(192,192,192,0.25),rgba(192,192,192,0.05)); border: 1px solid rgba(192,192,192,0.3); animation-delay: 0.15s; }
+.pb-stand.p3 { height: 65px;  background: linear-gradient(180deg,rgba(205,127,50,0.25),rgba(205,127,50,0.05)); border: 1px solid rgba(205,127,50,0.3); animation-delay: 0.45s; }
+.btn-restart {
+  padding: 14px 44px; border: none; border-radius: 10px;
+  font-family: 'Nunito', sans-serif; font-size: 0.9rem; font-weight: 800;
+  background: rgba(255,255,255,0.12); color: var(--white);
+  border: 1px solid rgba(255,255,255,0.18);
+  cursor: pointer; transition: all 0.18s; letter-spacing: 0.04em;
+}
+.btn-restart:hover { background: rgba(255,255,255,0.2); }
+
+/* Confetti */
+.confetti { position: fixed; pointer-events: none; z-index: 300; }
+.cf {
+  position: absolute; top: -16px;
+  animation: cfFall linear both;
+  border-radius: 2px;
+}
+@keyframes cfFall {
+  to { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+}
+
+@keyframes popIn {
+  from { transform: scale(0.6); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+@keyframes riseUp {
+  from { transform: translateY(50px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ SETUP OVERLAY ════════════════════════ -->
+<div id="setup-overlay">
+  <div class="setup-card">
+    <div class="setup-title">ShakeRace 🏃</div>
+    <div class="setup-sub">Pilih durasi lomba dan mulai!</div>
+
+    <label>Durasi Lomba</label>
+    <select id="race-duration" style="margin-bottom:16px">
+      <option value="30">30 detik</option>
+      <option value="45">45 detik</option>
+      <option value="60" selected>60 detik</option>
+      <option value="90">90 detik</option>
+      <option value="120">2 menit</option>
+    </select>
+
+    <button class="btn btn-accent btn-full" onclick="connectFirebase()">🚀 Buat Room</button>
+    <div id="setup-error" style="color:#ff6b6b;font-size:0.78rem;margin-top:12px;display:none"></div>
+  </div>
+</div>
+
+<!-- ══ GAME FIELD ════════════════════════════ -->
+<div id="game-field">
+
+  <!-- Sky & parallax bg -->
+  <div class="sky"></div>
+  <div class="stars" id="stars-layer"></div>
+  <div class="cloud-layer">
+    <span class="cloud">☁️</span><span class="cloud">⛅</span>
+    <span class="cloud">☁️</span><span class="cloud">☁️</span>
+    <span class="cloud">⛅</span><span class="cloud">☁️</span>
+    <span class="cloud">☁️</span><span class="cloud">⛅</span>
+  </div>
+
+  <!-- Mountains SVG parallax -->
+  <div class="mountains" id="mountains">
+    <svg class="mtn-svg" viewBox="0 0 1440 160" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="0,160 120,30 240,100 380,10 520,90 660,20 800,80 940,15 1080,70 1220,25 1360,65 1440,40 1440,160" fill="#1a3a5c" opacity="0.9"/>
+      <polygon points="0,160 80,60 200,120 350,40 490,110 630,50 770,100 910,35 1050,85 1190,45 1330,80 1440,55 1440,160" fill="#22487a" opacity="0.7"/>
+    </svg>
+  </div>
+
+  <!-- Ground & Track -->
+  <div class="ground"></div>
+  <div class="track" id="track">
+    <div class="finish-line">
+      <span class="finish-flag">🏁</span>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div class="hud">
+    <div class="hud-title">ShakeRace</div>
+    <div class="hud-room">Room: <span id="hud-room-code">——</span></div>
+    <div class="hud-spacer"></div>
+    <div class="hud-players"><strong id="hud-player-count">0</strong> pemain</div>
+    <div style="width:1px;height:24px;background:rgba(255,255,255,0.1);margin:0 8px"></div>
+    <div id="hud-timer" style="font-family:monospace;font-size:1.1rem;color:var(--gold);font-weight:700;min-width:48px;text-align:center">——</div>
+  </div>
+
+  <!-- Race progress bar (leader %) -->
+  <div class="race-progress-bar">
+    <div class="rpb-fill" id="rpb-fill" style="width:0%"></div>
+  </div>
+
+  <!-- Lobby overlay -->
+  <div id="lobby-overlay">
+    <div class="lobby-label">Kode Room — bagikan ke peserta</div>
+    <div class="room-code-big" id="lobby-code">——</div>
+    <div class="lobby-url" id="lobby-url">Buka file player.html → masukkan kode ini</div>
+    <div class="lobby-players-wrap" id="lobby-players"></div>
+    <button class="btn-start" id="btn-start" disabled onclick="startRace()">
+      ▶ &nbsp; MULAI LOMBA
+    </button>
+    <div style="font-size:0.72rem;color:rgba(240,244,255,0.3);margin-top:8px">Minimal 1 pemain untuk memulai</div>
+  </div>
+
+  <!-- Countdown overlay -->
+  <div id="countdown-overlay" style="display:none">
+    <div class="countdown-num" id="countdown-num">3</div>
+    <div class="countdown-sub" id="countdown-sub">Siap-siap goyangkan HP!</div>
+  </div>
+
+  <!-- Finish overlay -->
+  <div id="finish-overlay">
+    <div class="finish-title">🏁 Selesai!</div>
+    <div class="podium-row" id="podium-row"></div>
+    <button class="btn-restart" onclick="location.reload()">🔄 Main Lagi</button>
+  </div>
+
+  <!-- Confetti canvas -->
+  <div class="confetti" id="confetti-wrap"></div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════
+const G = {
+  roomCode: null,
+  raceDuration: 60,
+  players: {},       // { id: { name, avatar, steps, finished } }
+  raceStartTime: null,
+  raceTimer: null,
+  timeLeft: 60,
+  status: 'setup',   // setup | lobby | countdown | racing | finished
+  listeners: [],
+  FINISH_STEPS: 200, // virtual steps to finish
+};
+
+// ════════════════════════════════════════════
+// PIXEL CHARACTER BUILDER
+// ════════════════════════════════════════════
+const CHAR_TYPES = ['pria','wanita','robot'];
+const CHAR_COLORS = {
+  pria:   { shirt:'#1565C0', shirt2:'#0D47A1', skin:'#F5C5A3', hair:'#3B2008', pant:'#263238', pant2:'#37474F', shoe:'#ffffff', bib:'#fff' },
+  wanita: { shirt:'#E91E63', shirt2:'#880E4F', skin:'#F5C5A3', hair:'#5D2E0C', pant:'#880E4F', pant2:'#F48FB1', shoe:'#E91E63', bib:'#F48FB1' },
+  robot:  { shirt:'#546E7A', shirt2:'#455A64', skin:'#607D8B', hair:'#00E5FF', pant:'#455A64', pant2:'#546E7A', shoe:'#37474F', bib:'#00E5FF' },
+};
+
+function px(color) { return `<div class="px" style="background:${color}"></div>`; }
+function gp()      { return `<div class="gp"></div>`; }
+function row(cells){ return `<div class="pr">${cells}</div>`; }
+
+function buildPixelChar(charType, idle=false) {
+  const c = CHAR_COLORS[charType] || CHAR_COLORS['pria'];
+  const idleClass = idle ? ' idle' : '';
+  const isRobot = charType === 'robot';
+
+  const head = isRobot ? `
+    ${row(gp()+gp()+px(c.hair)+gp()+gp())}
+    ${row(gp()+gp()+px('#90A4AE')+gp()+gp())}
+    ${row(px(c.skin)+px(c.skin)+px(c.skin)+px(c.skin)+px(c.skin))}
+    ${row(px('#607D8B')+px(c.hair)+px('#607D8B')+px(c.hair)+px('#607D8B'))}
+    ${row(px('#607D8B')+px(c.shirt2)+px(c.shirt2)+px(c.shirt2)+px('#607D8B'))}
+  ` : `
+    ${row(gp()+px(c.hair)+px(c.hair)+px(c.hair)+gp())}
+    ${row(px(c.skin)+px(c.skin)+px(c.skin)+px(c.skin)+px(c.skin))}
+    ${row(px(c.skin)+px('#2C1A0A')+px(c.skin)+px('#2C1A0A')+px(c.skin))}
+    ${row(px(c.skin)+px(c.skin)+px('#D32F2F')+px(c.skin)+px(c.skin))}
+  `;
+
+  const neck = row(gp()+gp()+px(c.skin)+gp()+gp());
+
+  const bodyRows = `
+    ${row(px(c.shirt)+px(c.shirt)+px(c.shirt)+px(c.shirt)+px(c.shirt))}
+    ${row(px(c.shirt)+px(c.bib)+px(c.bib)+px(c.bib)+px(c.shirt))}
+    ${row(px(c.shirt)+px(c.shirt)+px(c.shirt)+px(c.shirt)+px(c.shirt))}
+    ${row(px(c.shirt2)+px(c.shirt2)+px(c.shirt2)+px(c.shirt2)+px(c.shirt2))}
+  `;
+
+  return `<div class="pixel-char${idleClass}">
+    ${head}
+    ${neck}
+    <div class="body-arms">
+      <div class="arm-col al"><div class="arm-px" style="background:${c.shirt}"></div><div class="arm-px" style="background:${c.shirt}"></div><div class="arm-px" style="background:${c.skin}"></div></div>
+      <div style="display:flex;flex-direction:column">${bodyRows}</div>
+      <div class="arm-col ar"><div class="arm-px" style="background:${c.shirt2}"></div><div class="arm-px" style="background:${c.shirt2}"></div><div class="arm-px" style="background:${c.skin}"></div></div>
+    </div>
+    <div class="legs-wrap">
+      <div class="leg-col ll">
+        <div class="px" style="background:${c.pant}"></div>
+        <div class="px" style="background:${c.pant}"></div>
+        <div class="px" style="background:${c.pant2}"></div>
+        <div class="px" style="background:${c.pant2}"></div>
+        <div class="px" style="background:${c.shoe}"></div>
+      </div>
+      <div class="gp"></div>
+      <div class="leg-col lr">
+        <div class="px" style="background:${c.pant2}"></div>
+        <div class="px" style="background:${c.pant2}"></div>
+        <div class="px" style="background:${c.pant}"></div>
+        <div class="px" style="background:${c.pant}"></div>
+        <div class="px" style="background:${c.shoe}"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ════════════════════════════════════════════
+// FIREBASE CONNECT
+// ════════════════════════════════════════════
+function connectFirebase() {
+  const errEl = document.getElementById('setup-error');
+  errEl.style.display = 'none';
+
+  // Cek Firebase sudah siap
+  if (!window._db) {
+    errEl.textContent = '⚠ Firebase belum siap, tunggu sebentar lalu coba lagi.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  G.raceDuration = parseInt(document.getElementById('race-duration').value);
+  G.FINISH_STEPS = Math.round(G.raceDuration * 3.5);
+
+  const db = window._db;
+  const { ref, set, onValue } = window._dbFns;
+
+  // Generate room code
+  G.roomCode = String(Math.floor(100000 + Math.random() * 900000));
+  document.getElementById('hud-room-code').textContent = G.roomCode;
+  document.getElementById('lobby-code').textContent = G.roomCode;
+  document.getElementById('lobby-url').textContent =
+    `Buka shake-race-player.html → masukkan kode: ${G.roomCode}`;
+
+  // Create room in Firebase
+  set(ref(db, `races/${G.roomCode}`), {
+    status: 'lobby',
+    duration: G.raceDuration,
+    finishSteps: G.FINISH_STEPS,
+    players: {},
+  });
+
+  // Listen for players
+  const unsub = onValue(ref(db, `races/${G.roomCode}/players`), snap => {
+    G.players = snap.val() || {};
+    onPlayersUpdate();
+  });
+  G.listeners.push(unsub);
+
+  // Show game field
+  document.getElementById('setup-overlay').style.display = 'none';
+  document.getElementById('game-field').style.display = 'block';
+  generateStars();
+
+  G.status = 'lobby';
+}
+
+// ════════════════════════════════════════════
+// PLAYERS UPDATE
+// ════════════════════════════════════════════
+function onPlayersUpdate() {
+  const entries = Object.entries(G.players);
+  document.getElementById('hud-player-count').textContent = entries.length;
+  document.getElementById('btn-start').disabled = entries.length < 1;
+
+  // Update lobby chips
+  const wrap = document.getElementById('lobby-players');
+  wrap.innerHTML = entries.map(([,p]) => `
+    <div class="lobby-player-chip">
+      <div class="lpc-avatar">${buildPixelChar(p.avatar, false)}</div>
+      <div class="lpc-name">${p.name}</div>
+    </div>
+  `).join('');
+
+  // Update runners on track
+  if (G.status === 'racing' || G.status === 'finished') {
+    renderRunners();
+  }
+}
+
+// ════════════════════════════════════════════
+// START RACE — COUNTDOWN → GO
+// ════════════════════════════════════════════
+async function startRace() {
+  const db = window._db;
+  const { ref, update } = window._dbFns;
+
+  document.getElementById('lobby-overlay').style.display = 'none';
+  document.getElementById('countdown-overlay').style.display = 'flex';
+
+  // Initialize runner positions
+  buildRunnerLanes();
+
+  await update(ref(db, `races/${G.roomCode}`), { status: 'countdown' });
+
+  let c = 3;
+  const numEl = document.getElementById('countdown-num');
+  const subEl = document.getElementById('countdown-sub');
+
+  const tick = () => {
+    numEl.style.animation = 'none';
+    void numEl.offsetWidth; // reflow
+    numEl.style.animation = 'countPop 0.9s ease-out forwards';
+
+    if (c > 0) {
+      numEl.textContent = c;
+      subEl.textContent = c === 3 ? 'Siap-siap goyangkan HP!' : c === 2 ? 'Bersiap...' : 'Tiga... dua... satu...';
+      c--;
+      setTimeout(tick, 900);
+    } else {
+      numEl.textContent = 'GO!';
+      numEl.style.color = '#00e5ff';
+      subEl.textContent = '🏃 Goyangkan HP kamu!';
+      setTimeout(async () => {
+        document.getElementById('countdown-overlay').style.display = 'none';
+        G.status = 'racing';
+        G.timeLeft = G.raceDuration;
+        await update(ref(db, `races/${G.roomCode}`), {
+          status: 'racing',
+          startedAt: Date.now(),
+        });
+        startRaceTimer();
+        listenSteps();
+      }, 900);
+    }
+  };
+  tick();
+}
+
+// ════════════════════════════════════════════
+// RACE TIMER
+// ════════════════════════════════════════════
+function startRaceTimer() {
+  const timerEl = document.getElementById('hud-timer');
+  timerEl.style.color = 'var(--gold)';
+
+  G.raceTimer = setInterval(async () => {
+    G.timeLeft--;
+    const m = Math.floor(G.timeLeft / 60);
+    const s = G.timeLeft % 60;
+    timerEl.textContent = m > 0 ? `${m}:${String(s).padStart(2,'0')}` : `${s}s`;
+
+    if (G.timeLeft <= 10) timerEl.style.color = '#ff6b6b';
+    if (G.timeLeft <= 0) {
+      clearInterval(G.raceTimer);
+      endRace();
+    }
+  }, 1000);
+}
+
+// ════════════════════════════════════════════
+// LISTEN STEPS (realtime)
+// ════════════════════════════════════════════
+function listenSteps() {
+  const db = window._db;
+  const { ref, onValue } = window._dbFns;
+
+  const unsub = onValue(ref(db, `races/${G.roomCode}/players`), snap => {
+    const prev = { ...G.players };
+    G.players = snap.val() || {};
+
+    // Check if someone just got more steps (dust effect)
+    for (const [id, p] of Object.entries(G.players)) {
+      if (prev[id] && p.steps > prev[id].steps) {
+        spawnDust(id);
+      }
+    }
+
+    renderRunners();
+    updateLeaderProgress();
+
+    // Check finish
+    for (const [id, p] of Object.entries(G.players)) {
+      if (p.steps >= G.FINISH_STEPS && !p.finished && G.status === 'racing') {
+        endRace();
+        return;
+      }
+    }
+  });
+  G.listeners.push(unsub);
+}
+
+// ════════════════════════════════════════════
+// RENDER RUNNERS
+// ════════════════════════════════════════════
+function buildRunnerLanes() {
+  const track = document.getElementById('track');
+  const entries = Object.entries(G.players);
+  const count = entries.length;
+  const trackHeight = track.offsetHeight;
+  const laneH = Math.min(80, trackHeight / Math.max(count, 1));
+
+  // Clear old runners
+  track.querySelectorAll('.runner-lane').forEach(el => el.remove());
+
+  entries.forEach(([id, p], i) => {
+    const lane = document.createElement('div');
+    lane.className = 'runner-lane';
+    lane.id = `lane-${id}`;
+    lane.style.cssText = `
+      top: ${(i / count) * 85 + 4}%;
+      height: ${laneH}px;
+    `;
+
+    // Lane stripe
+    lane.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'runner-wrap';
+    wrap.id = `runner-${id}`;
+    wrap.style.left = '5%';
+
+    wrap.innerHTML = `
+      <div class="runner-emoji" id="emoji-${id}">${buildPixelChar(p.avatar, false)}</div>
+      <div class="runner-name-tag">${p.name}</div>
+    `;
+
+    lane.appendChild(wrap);
+    track.appendChild(lane);
+  });
+}
+
+function renderRunners() {
+  if (G.status !== 'racing' && G.status !== 'finished') return;
+
+  const track = document.getElementById('track');
+  const entries = Object.entries(G.players);
+
+  // Sort by steps for rank badges
+  const sorted = [...entries].sort((a,b) => (b[1].steps||0) - (a[1].steps||0));
+
+  entries.forEach(([id, p]) => {
+    const wrap = document.getElementById(`runner-${id}`);
+    if (!wrap) {
+      buildRunnerLanes();
+      return;
+    }
+    const steps = p.steps || 0;
+    const pct = Math.min(steps / G.FINISH_STEPS, 1);
+    // Map 5% to 88% of track width
+    const leftPct = 5 + pct * 83;
+    wrap.style.left = leftPct + '%';
+
+    // Bounce animation only if active
+    const emojiEl = document.getElementById(`emoji-${id}`);
+    if (emojiEl) {
+      const pixelChar = emojiEl.querySelector('.pixel-char');
+      if (pixelChar) pixelChar.classList.toggle('idle', steps === 0);
+    }
+
+    // Rank badge
+    const rank = sorted.findIndex(([sid]) => sid === id);
+    let rankBadge = wrap.querySelector('.runner-rank-badge');
+    if (!rankBadge) {
+      rankBadge = document.createElement('div');
+      rankBadge.className = 'runner-rank-badge';
+      wrap.prepend(rankBadge);
+    }
+    const medals = ['🥇','🥈','🥉'];
+    rankBadge.textContent = rank < 3 ? medals[rank] : `#${rank+1}`;
+    rankBadge.style.background = rank === 0 ? 'var(--gold)' : rank === 1 ? 'var(--silver)' : rank === 2 ? 'var(--bronze)' : 'rgba(255,255,255,0.15)';
+    rankBadge.style.color = rank < 3 ? '#000' : '#fff';
+  });
+}
+
+function updateLeaderProgress() {
+  const maxSteps = Math.max(...Object.values(G.players).map(p => p.steps || 0), 0);
+  const pct = Math.min(maxSteps / G.FINISH_STEPS * 100, 100);
+  document.getElementById('rpb-fill').style.width = pct + '%';
+}
+
+// ════════════════════════════════════════════
+// DUST EFFECT
+// ════════════════════════════════════════════
+function spawnDust(playerId) {
+  const wrap = document.getElementById(`runner-${playerId}`);
+  if (!wrap) return;
+  const rect = wrap.getBoundingClientRect();
+  const track = document.getElementById('track');
+  for (let i = 0; i < 3; i++) {
+    const d = document.createElement('div');
+    d.className = 'dust';
+    d.style.cssText = `
+      left: ${rect.left - track.getBoundingClientRect().left + Math.random()*10 - 5}px;
+      top:  ${rect.bottom - track.getBoundingClientRect().top - 8}px;
+      animation-duration: ${0.4 + Math.random()*0.3}s;
+    `;
+    track.appendChild(d);
+    setTimeout(() => d.remove(), 700);
+  }
+}
+
+// ════════════════════════════════════════════
+// END RACE
+// ════════════════════════════════════════════
+async function endRace() {
+  if (G.status === 'finished') return;
+  G.status = 'finished';
+  clearInterval(G.raceTimer);
+
+  const db = window._db;
+  const { ref, update } = window._dbFns;
+  await update(ref(db, `races/${G.roomCode}`), { status: 'finished' });
+
+  document.getElementById('hud-timer').textContent = '🏁';
+
+  setTimeout(() => showPodium(), 1200);
+}
+
+function showPodium() {
+  const sorted = Object.entries(G.players)
+    .map(([id, p]) => ({ ...p, id }))
+    .sort((a, b) => (b.steps || 0) - (a.steps || 0));
+
+  const order = [1, 0, 2];
+  const medals = ['🥇', '🥈', '🥉'];
+  const standClass = ['p2','p1','p3'];
+
+  const row = document.getElementById('podium-row');
+  row.innerHTML = order.filter(i => sorted[i]).map(i => {
+    const p = sorted[i];
+    return `
+      <div class="podium-block" style="animation-delay:${[0.3,0.1,0.5][i]}s">
+        <div class="pb-avatar">${buildPixelChar(p.avatar, true)}</div>
+        <div class="pb-name">${p.name}</div>
+        <div class="pb-steps">${p.steps || 0} goyang</div>
+        <div class="pb-stand ${standClass[i]}">${medals[i]}</div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('finish-overlay').style.display = 'flex';
+  launchConfetti();
+}
+
+// ════════════════════════════════════════════
+// CONFETTI
+// ════════════════════════════════════════════
+function launchConfetti() {
+  const wrap = document.getElementById('confetti-wrap');
+  const colors = ['#ffd700','#00e5ff','#ff6b6b','#fff','#a78bfa','#34d399'];
+  for (let i = 0; i < 120; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'cf';
+      const w = 4 + Math.random() * 8, h = 8 + Math.random() * 12;
+      el.style.cssText = `
+        left: ${Math.random()*100}vw;
+        background: ${colors[Math.floor(Math.random()*colors.length)]};
+        width: ${w}px; height: ${h}px;
+        border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+        animation-duration: ${1.8 + Math.random()*2.5}s;
+        animation-delay: ${Math.random()*0.8}s;
+      `;
+      wrap.appendChild(el);
+      setTimeout(() => el.remove(), 5000);
+    }, i * 25);
+  }
+}
+
+// ════════════════════════════════════════════
+// STARS BACKGROUND
+// ════════════════════════════════════════════
+function generateStars() {
+  const layer = document.getElementById('stars-layer');
+  for (let i = 0; i < 80; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    s.style.cssText = `
+      left: ${Math.random()*100}%;
+      top:  ${Math.random()*100}%;
+      --d: ${2+Math.random()*4}s;
+      width:  ${Math.random() > 0.7 ? 3 : 2}px;
+      height: ${Math.random() > 0.7 ? 3 : 2}px;
+      animation-delay: ${Math.random()*4}s;
+    `;
+    layer.appendChild(s);
+  }
+}
+
+// Firebase ready
+window.addEventListener('fb-ready', () => {
+  // App loaded, wait for user action
+});
+</script>
+</body>
+</html>
